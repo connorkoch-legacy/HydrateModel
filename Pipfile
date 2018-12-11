@@ -6,6 +6,11 @@ verify_ssl = true
 [dev-packages]
 
 [packages]
+pandas = "*"
+tensorflow = "*"
+keras = "*"
+numpy = "*"
+sklearn = "*"
 
 [requires]
-python_version = "3.7"
+python_version = "3.6"

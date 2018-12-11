@@ -13,6 +13,11 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.feature_selection import SelectFromModel
 from sklearn.ensemble import ExtraTreesClassifier
 import matplotlib.pyplot as plt
+from sklearn.feature_selection import SelectKBest, mutual_info_regression, RFE
+from sklearn.linear_model import LinearRegression, LassoCV
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import r2_score
+
 
 
 # Read flowloop data from csv and convert values to float
@@ -21,20 +26,14 @@ data = data.applymap(float)
 
 #//////////////////////////////////////////////
 
-data.head()
-
-data.describe()
+#Do we ever fit data to just the features output by the feature selection methods?
+#Did you standardize the data in the field matrices?
 
 #Create X and Y from data frame
 X = np.asarray(data)
 Y = X[:, 8]
 X = X[:, :8]
-#X_train.shape
-#Y_train.shape
 Y = Y.astype(int)
-
-print(X.shape)
-print(Y.shape)
 
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, random_state=0, test_size=0.2)
 
@@ -48,27 +47,16 @@ std = X_train.std(axis=0)
 X_train = (X_train - mean) / std
 X_test = (X_test - mean) / std
 
-#simple_layers = [
-#    Dense(100, activation=tf.nn.relu, input_dim=8),
-#    Dropout(0.5),
-#    Dense(100, activation=tf.nn.relu),
-#    Dropout(0.5),
-#    Dense(2,activation="softmax")
-#]
-
-#simple_model = Sequential(simple_layers)
-
-#simple_model.compile(optimizer="adam", loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-#simple_model.fit(X_train, Y_train, epochs=50)
-
-"""This section checks neural network, simple sequetial model"""
-
+"""############## This section checks neural network, simple sequetial model ##############"""
+print("############## Sequential Model ##############")
 def build_model(X_train):
   model = Sequential([
     #Flatten(input_dim=8),
     Dense(100, input_dim=8, activation='relu'),
     Dropout(0.25),
     Dense(100, activation=tf.nn.relu),
+    Dropout(0.25),
+    Dense(50, activation=tf.nn.relu),
     Dropout(0.25),
     Dense(1,activation='sigmoid')
   ])
@@ -86,73 +74,63 @@ simple_nn_model.summary()
 simple_nn_model.fit(X_train, Y_train, epochs=50)
 simple_nn_model.summary()
 
+print("Model evaluated on the test data: ")
 print(simple_nn_model.metrics_names)
-simple_nn_model.evaluate(X_test, Y_test)
+print(simple_nn_model.evaluate(X_test, Y_test))
+print()
+print()
 
-X_field=np.array([[0.1,	4.18,	750,	41,	0.772,	15, 0.03, 135],
-[0.1,	4.18,	750,	41,	0.772,	15, 0.03, 153],
-[0.23,	3.93,	1000,	41,	0.772,	15, 0.15, 216],
-[0.38,	9.92,	250,	41,	0.772,	15, 0.17, 307],
-[0.54,	9.92,	250,	41,	0.772,	15, 0.16, 211],
-[0.45,	3.92,	250,	41,	0.772,	15, 0.11, 208],
-[0.45,	3.92,	1021,	41,	0.772,	15, 0.01, 73.5],
-[0.45,	3.92,	1021,	41,	0.772,	15, 0.09, 97.8],
-[0.45,	3.92,	1077,	41,	0.772,	15, 0.09, 115],
-[0.45,	3.92,	1706,	41,	0.772,	15, 0.14, 107],
-[0.45,	3.92,	1706,	41,	0.772,	15, 0.14, 115],
-[0.6,	3.93,	1800,	41,	0.772,	15, 0.3, 210],
-[0.42,	4.18,	1100,	41,	0.772,	15, 0.19, 178]])
 
-X_field.shape
-X_field = (X_field - mean) / std
-Y_field= simple_nn_model.predict(X_field)
-print(Y_field)
-
-X_field=np.array([[0.1,	4.18,	750,	41,	0.772,	15, 0.050, 135],
-[0.1,	4.18,	750,	41,	0.772,	15, 0.050, 153],
-[0.23,	3.93,	1000,	41,	0.772,	15, 0.084, 216],
-[0.38,	9.92,	250,	41,	0.772,	15, 0.12, 307],
-[0.54,	9.92,	250,	41,	0.772,	15, 0.132, 211],
-[0.45,	3.92,	250,	41,	0.772,	15, 0.077, 208],
-[0.45,	3.92,	1021,	41,	0.772,	15, 0.079, 73.5],
-[0.45,	3.92,	1021,	41,	0.772,	15, 0.079, 97.8],
-[0.45,	3.92,	1077,	41,	0.772,	15, 0.087, 115],
-[0.45,	3.92,	1706,	41,	0.772,	15, 0.094, 107],
-[0.45,	3.92,	1706,	41,	0.772,	15, 0.094, 115],
-[0.6,	3.93,	1800,	41,	0.772,	15, 0.211, 210],
-[0.42,	4.18,	1100,	41,	0.772,	15, 0.136, 178]])
-
-X_field.shape
-X_field = (X_field - mean) / std
-Y_field= simple_nn_model.predict(X_field)
-print(Y_field)
+#additional test vals for the model
+# X_field=np.array([[0.1,	4.18,	750,	41,	0.772,	15, 0.03, 135],
+# [0.1,	4.18,	750,	41,	0.772,	15, 0.03, 153],
+# [0.23,	3.93,	1000,	41,	0.772,	15, 0.15, 216],
+# [0.38,	9.92,	250,	41,	0.772,	15, 0.17, 307],
+# [0.54,	9.92,	250,	41,	0.772,	15, 0.16, 211],
+# [0.45,	3.92,	250,	41,	0.772,	15, 0.11, 208],
+# [0.45,	3.92,	1021,	41,	0.772,	15, 0.01, 73.5],
+# [0.45,	3.92,	1021,	41,	0.772,	15, 0.09, 97.8],
+# [0.45,	3.92,	1077,	41,	0.772,	15, 0.09, 115],
+# [0.45,	3.92,	1706,	41,	0.772,	15, 0.14, 107],
+# [0.45,	3.92,	1706,	41,	0.772,	15, 0.14, 115],
+# [0.6,	3.93,	1800,	41,	0.772,	15, 0.3, 210],
+# [0.42,	4.18,	1100,	41,	0.772,	15, 0.19, 178]])
+#
+# X_field = (X_field - mean) / std
+# Y_field = simple_nn_model.predict(X_field)
+# #print(Y_field)
+#
+# X_field=np.array([[0.1,	4.18,	750,	41,	0.772,	15, 0.050, 135],
+# [0.1,	4.18,	750,	41,	0.772,	15, 0.050, 153],
+# [0.23,	3.93,	1000,	41,	0.772,	15, 0.084, 216],
+# [0.38,	9.92,	250,	41,	0.772,	15, 0.12, 307],
+# [0.54,	9.92,	250,	41,	0.772,	15, 0.132, 211],
+# [0.45,	3.92,	250,	41,	0.772,	15, 0.077, 208],
+# [0.45,	3.92,	1021,	41,	0.772,	15, 0.079, 73.5],
+# [0.45,	3.92,	1021,	41,	0.772,	15, 0.079, 97.8],
+# [0.45,	3.92,	1077,	41,	0.772,	15, 0.087, 115],
+# [0.45,	3.92,	1706,	41,	0.772,	15, 0.094, 107],
+# [0.45,	3.92,	1706,	41,	0.772,	15, 0.094, 115],
+# [0.6,	3.93,	1800,	41,	0.772,	15, 0.211, 210],
+# [0.42,	4.18,	1100,	41,	0.772,	15, 0.136, 178]])
+#
+# X_field = (X_field - mean) / std
+# Y_field= simple_nn_model.predict(X_field)
+# print(Y_field)
 
 """This section checks all the SVC models, linear, polynomial and rbf"""
 
-#params = {
-#    "C": [1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1, 1e2, 1e3, 1e4],
-#    "random_state": [0]
-#} #initial params
+print("############## SVC Model ##############")
 
 params = {
     "C": [1e3, 5e3, 1e4, 2e4, 5e4],
     "random_state": [0]
 }
 
-from sklearn.model_selection import GridSearchCV
-svc = SVC()
-clf = GridSearchCV(svc, params, scoring="accuracy")
-
-assert clf.get_params()["param_grid"] == params
-assert clf.get_params()["scoring"] == "accuracy"
+svc = SVC(gamma="scale")
+clf = GridSearchCV(svc, params, scoring="accuracy", cv=5)
 
 clf.fit(X_train, Y_train)
-
-clf.best_estimator_
-
-clf.best_score_
-
-clf.best_params_
 
 GridSearchCVScore = clf.score(X_test, Y_test)
 print(GridSearchCVScore)
@@ -161,46 +139,42 @@ clf_linear=SVC(kernel='linear')
 clf_linear.fit(X_train, Y_train)
 
 linearRegressScore=clf_linear.score(X_test,Y_test)
-print(linearRegressScore)
+print("SVC linear", linearRegressScore)
 
 clf_poly=SVC(kernel='poly',degree=3)
 clf_poly.fit(X_train, Y_train)
 polyRegressScore=clf_poly.score(X_test,Y_test)
-print(polyRegressScore)
-
-clf_linear1=sk.svm.LinearSVC()
-clf_linear1.fit(X_train, Y_train)
-linearRegressScore1=clf_linear1.score(X_test,Y_test)
-print(linearRegressScore1)
+print("SVC polynomial ", polyRegressScore)
 
 clf_rbf=SVC(kernel='rbf',gamma=0.7)
 clf_rbf.fit(X_train, Y_train)
 rbfRegressScore=clf_rbf.score(X_test,Y_test)
-print(rbfRegressScore)
+print("SVC rbf", rbfRegressScore)
 
 """This section checks feature selection"""
 
-from sklearn.feature_selection import SelectKBest, mutual_info_regression, RFE
-from sklearn.linear_model import LinearRegression, LassoCV
 mi_transformer=SelectKBest(mutual_info_regression,k=4)
-print(X_train.shape)
 #mi_X_train=mi_transformer.fit_transform(X_train,Y_train)
 mi_X=mi_transformer.fit_transform(X,Y)
 #print(mi_X_train.shape)
 
-import array as arr
 features=["water cut", "liquid velocity", "GOR", "Viscosity","Sp. Gravity", "IFT", "HVF", "Fa"]
+print("KBest Selection")
 for feature, importance in zip(features, mi_transformer.scores_):
   print(f"The MI score for {feature} is {importance}")
+print()
 
 tree=ExtraTreesClassifier(n_estimators=50)
 tree.fit(X, Y)
+print("ExtraTrees Selection")
 for feature, importance in zip(features,tree.feature_importances_):
   print(f"The MI score for {feature} is {importance}")
+print()
+print()
 
-"""This section does regression for Dp"""
 
-data.shape
+"""############## This section does regression for Dp ##############"""
+print("############## Regression for pressure drop ##############")
 
 X = np.asarray(data)
 Y = X[:, 10]
@@ -220,6 +194,8 @@ def build_regression_model(X_train):
     Dropout(0.1),
     Dense(128, activation='relu'),
     Dropout(0.1),
+    Dense(64, activation='relu'),
+    Dropout(0.1),
     Dense(1)
   ])
 
@@ -235,34 +211,29 @@ simple_nn_model.summary()
 simple_nn_model.fit(X_train, Y_train, epochs=60)
 simple_nn_model.summary()
 
+print("Model evaluated on the test data: ")
 print(simple_nn_model.metrics_names)
-simple_nn_model.evaluate(X_test, Y_test)
+print(simple_nn_model.evaluate(X_test, Y_test))
 
 Dp_predictions = simple_nn_model.predict(X_test).flatten()
 
-from sklearn.metrics import r2_score
 R2 = r2_score(Y_test, Dp_predictions)
-print(R2)
-
-Dp_predictions
-
-Y_test
-
-#fig = plt.figure()
+print("r^2: ", R2)
+print()
+print()
 
 
+# plt.scatter(Y_test, Dp_predictions)
+# plt.xlabel('Measured Dp', fontsize='large')
+# plt.ylabel('Predictions', fontsize='large')
+# #plt.axis('equal')
+# #plt.xlim(plt.xlim())
+# #plt.ylim(plt.ylim())
+# #_ = plt.plot([0, 200], [0, 200])
+# plt.show()
 
-
-plt.scatter(Y_test, Dp_predictions)
-plt.xlabel('Measured Dp', fontsize='large')
-plt.ylabel('Predictions', fontsize='large')
-#plt.axis('equal')
-#plt.xlim(plt.xlim())
-#plt.ylim(plt.ylim())
-#_ = plt.plot([0, 200], [0, 200])
-plt.show()
-
-"""This section investigates regression of hydrate growth"""
+"""############## This section investigates regression of hydrate growth ##############"""
+print("############## Regression for hydrate growth ##############")
 
 Features=data.iloc[:,[0,1,2,3,4,5,9]]
 HVF=data.iloc[:,6]
@@ -276,51 +247,48 @@ std = X_train.std(axis=0)
 X_train = (X_train - mean) / std
 X_test = (X_test - mean) / std
 
-print(X_train.shape)
-print(X_test.shape)
-
 simple_nn_model = build_regression_model(X_train)
 simple_nn_model.summary()
 
 simple_nn_model.fit(X_train, Y_train, epochs=60)
 simple_nn_model.summary()
 
+print("Model evaluated on the test data: ")
 print(simple_nn_model.metrics_names)
-simple_nn_model.evaluate(X_test, Y_test)
+print(simple_nn_model.evaluate(X_test, Y_test))
 
 HVF_predictions = simple_nn_model.predict(X_test).flatten()
 
-from sklearn.metrics import r2_score
 R2 = r2_score(Y_test, HVF_predictions)
-print(R2)
+print("r^2: ", R2)
+print()
+print()
 
-print(HVF_predictions)
+#print("HVF prediction: ", HVF_predictions)
 
-Y_test
-
-plt.scatter(Y_test, HVF_predictions)
-plt.xlabel('Exp HVF')
-plt.ylabel('Predictions')
-plt.axis('equal')
-plt.xlim(plt.xlim())
-plt.ylim(plt.ylim())
-_ = plt.plot([0, 1], [0, 1])
-
-X_field=np.array([[0.1,	4.18,	750,	41,	0.772,	15, 15],
-[0.1,	4.18,	750,	41,	0.772,	15, 15],
-[0.23,	3.93,	1000,	41,	0.772,	15, 30],
-[0.38,	9.92,	250,	41,	0.772,	15, 30],
-[0.54,	9.92,	250,	41,	0.772,	15, 30],
-[0.45,	3.92,	250,	41,	0.772,	15, 30],
-[0.45,	3.92,	1021,	41,	0.772,	15, 20],
-[0.45,	3.92,	1021,	41,	0.772,	15, 20],
-[0.45,	3.92,	1077,	41,	0.772,	15, 25],
-[0.45,	3.92,	1706,	41,	0.772,	15, 25],
-[0.45,	3.92,	1706,	41,	0.772,	15, 25],
-[0.6,	3.93,	1800,	41,	0.772,	15, 70],
-[0.42,	4.18,	1100,	41,	0.772,	15, 60]])
-
-X_field.shape
-X_field = (X_field - mean) / std
-HVF_field= simple_nn_model.predict(X_field)
-print(HVF_field)
+# plt.scatter(Y_test, HVF_predictions)
+# plt.xlabel('Exp HVF')
+# plt.ylabel('Predictions')
+# plt.axis('equal')
+# plt.xlim(plt.xlim())
+# plt.ylim(plt.ylim())
+# _ = plt.plot([0, 1], [0, 1])
+#
+# X_field=np.array([[0.1,	4.18,	750,	41,	0.772,	15, 15],
+# [0.1,	4.18,	750,	41,	0.772,	15, 15],
+# [0.23,	3.93,	1000,	41,	0.772,	15, 30],
+# [0.38,	9.92,	250,	41,	0.772,	15, 30],
+# [0.54,	9.92,	250,	41,	0.772,	15, 30],
+# [0.45,	3.92,	250,	41,	0.772,	15, 30],
+# [0.45,	3.92,	1021,	41,	0.772,	15, 20],
+# [0.45,	3.92,	1021,	41,	0.772,	15, 20],
+# [0.45,	3.92,	1077,	41,	0.772,	15, 25],
+# [0.45,	3.92,	1706,	41,	0.772,	15, 25],
+# [0.45,	3.92,	1706,	41,	0.772,	15, 25],
+# [0.6,	3.93,	1800,	41,	0.772,	15, 70],
+# [0.42,	4.18,	1100,	41,	0.772,	15, 60]])
+#
+# X_field.shape
+# X_field = (X_field - mean) / std
+# HVF_field= simple_nn_model.predict(X_field)
+# print(HVF_field)
